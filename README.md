@@ -1,8 +1,10 @@
 # Max Payne 3 - First Person Mod
 
-This mod creates a first person camera for you to use in Max Payne 3.  
+This mod creates a first person camera for you to use in Max Payne 3.
+
 You can configure the mod in the FirstPerson.ini file.
 
+Get the latest version here: <https://github.com/l0m-dev/Max-Payne-3-First-Person/releases>  
 Requires scripthook: <https://www.nexusmods.com/maxpayne3/mods/5>
 
 Mod video: <https://youtu.be/dCxxW9OzikY>
