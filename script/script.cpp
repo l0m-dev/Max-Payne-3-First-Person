@@ -207,13 +207,16 @@ bool FirstPersonAllowed(Player player) {
 	    !HUD::IS_PAUSE_MENU_ACTIVE() && !PLAYER::IS_PLAYER_CLIMBING(player) && PED::IS_PED_VISIBLE(plrPed) && !PLAYER::IS_PLAYER_DEAD(player);
 }
 
-bool ShouldResetStreaming() {
+bool ShouldResetStreaming(Vector3 playerHeadPosition) {
 	int currentLevel = MISC::GET_INDEX_OF_CURRENT_LEVEL();
+	//59 105
+	if (currentLevel == 14 && (int)playerHeadPosition.x == 22 && (int)playerHeadPosition.y == -258) // ch 7, cp 6
+		return true;
 
-	if (currentLevel == 12 && (ISEQ::ISEQ_GET_STATE(1252772788) >= 2)) // ch 6, plank
-		return false;
+	if (currentLevel == 15 && (int)playerHeadPosition.x == 60 && (int)playerHeadPosition.y == -104) // ch 8
+		return true;
 
-	return true;
+	return false;
 }
 
 void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRotation, float cameraFOV, bool transition) {
@@ -244,9 +247,6 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 		} else {
 			ShowPlayerHead(false);
 		}
-
-		//if (ShouldResetStreaming())
-		//	STREAMING::RESET_STREAMING_POINT_OF_INTEREST();
 
 		if (!CAM::DOES_CAM_EXIST(firstPersonCamera)) {
 			firstPersonCamera = CAM::CREATE_CAM_WITH_PARAMS("DEFAULT_SCRIPTED_CAMERA", cameraLocation.x, cameraLocation.y, cameraLocation.z,
@@ -347,7 +347,7 @@ int main() {
 			if (debug) {
 				char array[128];
 				//snprintf(array, sizeof(array), "%i %i %i %i Speed: %f", (int)camRelativeHeading, (int)heading, CAM::IS_CAM_RENDERING(FirstPersonCamera), CAM::GET_RENDERING_CAM(), PED::GET_PED_SPEED(plrPed));
-				//snprintf(array, sizeof(array), "x: %f Y: %f Z: %f", playerHeadPosition.x, playerHeadPosition.y, playerHeadPosition.z);
+				//snprintf(array, sizeof(array), "X: %f Y: %f Z: %f", playerHeadPosition.x, playerHeadPosition.y, playerHeadPosition.z);
 				//snprintf(array, sizeof(array), "Level: %i Seq1: %i Seq2: %i Seq3: %i", currentLevel, ISEQ::ISEQ_GET_STATE(1252772788), ISEQ::ISEQ_GET_STATE(1549233931), ISEQ::ISEQ_GET_STATE(736610621));
 				snprintf(array, sizeof(array), "X: %f Y: %f Z: %f", offset.x, offset.y, offset.z);
 
@@ -406,10 +406,10 @@ int main() {
 					SetupViewMode(FirstPerson, playerHeadPosition, gameplayCameraRotation, firstPersonFOV, interpolatingCamera);
 				}
 
-				if (currentLevel == 14 && (int)playerHeadPosition.x == 22 && (int)playerHeadPosition.y == -258) // ch 7, cp 6
+				if (ShouldResetStreaming(playerHeadPosition))
 					STREAMING::RESET_STREAMING_POINT_OF_INTEREST();
 
-				if (abs(camRelativeHeading) > 140 + 0) {
+				if (abs(camRelativeHeading) > 140) {
 					DesiredHeading = (heading + camRelativeHeading);
 				}
 
