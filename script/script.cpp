@@ -55,7 +55,8 @@ void PatchFirstPerson() {
 }
 
 void PatchGameplayCameraPosition(ViewMode viewMode) {
-	BYTE nopBytes[12] = { 0xD9, 0x1E, 0xF3, 0x0F, 0x11, 0x46, 0x04, 0xF3, 0x0F, 0x11, 0x4E, 0x08 };
+	BYTE nopBytes[30] = { 0xD9, 0x00, 0xF3, 0x0F, 0x10, 0x40, 0x04, 0xF3, 0x0F, 0x10, 0x48, 0x08, 0xD9, 0x1E, 0xF3, 0x0F, 0x11, 0x46, 0x04, 0xF3, 0x0F,
+		0x11, 0x4E, 0x08, 0xD9, 0x40, 0x0C, 0xD9, 0x5E, 0x0C };
 	BYTE nop1Bytes_5[25] = { 0xF3, 0x0F, 0x11, 0x00, 0xF3, 0x0F, 0x10, 0x44, 0x24, 0x1C, 0xF3, 0x0F, 0x11, 0x48, 0x04, 0xF3, 0x0F, 0x11, 0x50, 0x08, 0xF3,
 		0x0F, 0x11, 0x40, 0x0C };
 
@@ -92,22 +93,22 @@ void PatchGameplayCameraPosition(ViewMode viewMode) {
 		}
 	} else {
 		if (nopAddr)
-			mem::Nop((BYTE*)nopAddr, 12);
+			mem::Nop((BYTE*)nopAddr, sizeof(nopBytes));
 		if (nopAddr1)
-			mem::Nop((BYTE*)(nopAddr1), 25);
+			mem::Nop((BYTE*)(nopAddr1), sizeof(nop1Bytes_5));
 
 		if (nopAddr1) {
-			mem::Nop((BYTE*)(nopAddr2 + 0x4), 27);
-			mem::Nop((BYTE*)(nopAddr2 + 0x28), 4);
-			mem::Nop((BYTE*)(nopAddr2 + 0x35), 5);
-			mem::Nop((BYTE*)(nopAddr2 + 0x43), 5);
+			mem::Nop((BYTE*)(nopAddr2 + 0x4), sizeof(nop2Bytes_4));
+			mem::Nop((BYTE*)(nopAddr2 + 0x28), sizeof(nop2Bytes_28));
+			mem::Nop((BYTE*)(nopAddr2 + 0x35), sizeof(nop2Bytes_35));
+			mem::Nop((BYTE*)(nopAddr2 + 0x43), sizeof(nop2Bytes_43));
 		}
 
 		// for shootdodge
 		if (nopAddr3) {
-			//mem::Nop((BYTE*)nopAddr3, 8);
-			//mem::Nop((BYTE*)(nopAddr3 + 0x152), 8);
-			//mem::Nop((BYTE*)(nopAddr3 + 0x1D1), 8);
+			//mem::Nop((BYTE*)nopAddr3, sizeof(nop3Bytes));
+			//mem::Nop((BYTE*)(nopAddr3 + 0x152), sizeof(nop3Bytes_152));
+			//mem::Nop((BYTE*)(nopAddr3 + 0x1D1), sizeof(nop3Bytes_1D1));
 		}
 	}
 }
@@ -132,7 +133,7 @@ void GetAddresses() {
 	const char* camComboPattern = "F0 41 CD CC 4C 3D CD CC 4C 3D 66 66 66 3F 35 FA 8E 3C 00 00 00 00 00 00 00 00";
 	cameraOffset = (uintptr_t)(mem::ScanIn(camComboPattern, (char*)moduleBase) + 0x1e);
 
-	const char* comboPattern = "D9 1E F3 0F 11 46 04 F3 0F 11 4E 08 D9 40 0C D9 5E 0C 8B 43 34 85 C0 0F";
+	const char* comboPattern = "D9 00 F3 0F 10 40 04 F3 0F 10 48 08 D9 1E F3 0F 11 46 04 F3 0F 11 4E 08 D9 40 0C D9 5E 0C 8B 43 34 85 C0 0F";
 	nopAddr = (BYTE*)(mem::ScanIn(comboPattern, (char*)moduleBase));
 
 	const char* comboPattern1 = "F3 0F 11 00 F3 0F 10 44 24 1C F3 0F 11 48 04 F3 0F 11 50 08 F3 0F 11 40 0C 5E 8B E5 5D C2 0C 00 CC";
@@ -176,6 +177,45 @@ void ShowPlayerHead(bool show) {
 	PLAYER::DISPLAY_PLAYER_COMPONENT(ePedComponent::PED_COMPONENT_TASK, show);
 }
 
+bool IsInCutscene() {
+	return CAM::IS_ANIMATED_CAMERA_PLAYING() || CUTSCENE::GET_CUTSCENE_TIME_MS() > 0;
+}
+
+bool FirstPersonAllowed(Player player) {
+	Ped plrPed = PLAYER::GET_PLAYER_PED(player);
+
+	if (!CAM::IS_SCREEN_FADED_IN())
+		return false;
+
+	if (!firstPersonCover && PED::IS_PED_IN_COVER(plrPed))
+		return false;
+
+	// this check is for some scripted events where you don't want to be in fp
+	if (!IsInCutscene() && !PLAYER::IS_PLAYER_CONTROL_ON(player) && abs(CAM::GET_GAMEPLAY_CAM_RELATIVE_HEADING()) > 150)
+		return false;
+
+	int currentLevel = MISC::GET_INDEX_OF_CURRENT_LEVEL();
+	if (currentLevel == 21 && ISEQ::ISEQ_GET_STATE(-1709834613) == 3) // ch 14, cp 11
+		return false;
+
+	// fire part first stairs = -211988314 ?
+	if (currentLevel == 12 && ISEQ::ISEQ_GET_STATE(1252772788) == 3) // ch 6, plank
+		return false;
+
+	return !IsInCutscene() && !CAM::IS_BULLET_CAMERA_ACTIVE() && !PLAYER::IS_PLAYER_DOING_MELEE_GRAPPLE(player) &&
+	    !PLAYER::IS_PLAYER_DOING_MELEE_GRAPPLE(player) && !PED::IS_PED_SWIMMING(plrPed) && !HUD::IS_SNIPER_SCOPE_VISIBLE() &&
+	    !HUD::IS_PAUSE_MENU_ACTIVE() && !PLAYER::IS_PLAYER_CLIMBING(player) && PED::IS_PED_VISIBLE(plrPed) && !PLAYER::IS_PLAYER_DEAD(player);
+}
+
+bool ShouldResetStreaming() {
+	int currentLevel = MISC::GET_INDEX_OF_CURRENT_LEVEL();
+
+	if (currentLevel == 12 && (ISEQ::ISEQ_GET_STATE(1252772788) >= 2)) // ch 6, plank
+		return false;
+
+	return true;
+}
+
 void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRotation, float cameraFOV, bool transition) {
 	Vector3 gameplayCameraLocation = CAM::GET_GAMEPLAY_CAM_COORD();
 	bool tpTransitionAllowed = !CAM::IS_BULLET_CAMERA_ACTIVE();
@@ -205,7 +245,8 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 			ShowPlayerHead(false);
 		}
 
-		STREAMING::RESET_STREAMING_POINT_OF_INTEREST();
+		//if (ShouldResetStreaming())
+		//	STREAMING::RESET_STREAMING_POINT_OF_INTEREST();
 
 		if (!CAM::DOES_CAM_EXIST(firstPersonCamera)) {
 			firstPersonCamera = CAM::CREATE_CAM_WITH_PARAMS("DEFAULT_SCRIPTED_CAMERA", cameraLocation.x, cameraLocation.y, cameraLocation.z,
@@ -221,32 +262,6 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 		CAM::RENDER_SCRIPT_CAMS(0, tpTransitionAllowed, interpTime, 0);
 		//CAM::SET_CAMERA_OVERRIDE("", "", 0, 1, 1);
 	}
-}
-
-bool IsInCutscene() {
-	return CAM::IS_ANIMATED_CAMERA_PLAYING() || CUTSCENE::GET_CUTSCENE_TIME_MS() > 0;
-}
-
-bool FirstPersonAllowed(Player player) {
-	Ped plrPed = PLAYER::GET_PLAYER_PED(player);
-
-	if (!CAM::IS_SCREEN_FADED_IN())
-		return false;
-
-	if (!firstPersonCover && PED::IS_PED_IN_COVER(plrPed))
-		return false;
-
-	// this check is for some scripted events where you don't want to be in fp
-	if (!IsInCutscene() && !PLAYER::IS_PLAYER_CONTROL_ON(player) && abs(CAM::GET_GAMEPLAY_CAM_RELATIVE_HEADING()) > 150)
-		return false;
-
-	int currentLevel = MISC::GET_INDEX_OF_CURRENT_LEVEL();
-	if (currentLevel == 21 && ISEQ::ISEQ_GET_STATE(-1709834613) == 3) // ch 14, cp 11
-		return false;
-
-	return !IsInCutscene() && !CAM::IS_BULLET_CAMERA_ACTIVE() && !PLAYER::IS_PLAYER_DOING_MELEE_GRAPPLE(player) &&
-	    !PLAYER::IS_PLAYER_DOING_MELEE_GRAPPLE(player) && !PED::IS_PED_SWIMMING(plrPed) && !HUD::IS_SNIPER_SCOPE_VISIBLE() &&
-	    !HUD::IS_PAUSE_MENU_ACTIVE() && !PLAYER::IS_PLAYER_CLIMBING(player) && PED::IS_PED_VISIBLE(plrPed) && !PLAYER::IS_PLAYER_DEAD(player);
 }
 
 int main() {
@@ -333,7 +348,9 @@ int main() {
 				char array[128];
 				//snprintf(array, sizeof(array), "%i %i %i %i Speed: %f", (int)camRelativeHeading, (int)heading, CAM::IS_CAM_RENDERING(FirstPersonCamera), CAM::GET_RENDERING_CAM(), PED::GET_PED_SPEED(plrPed));
 				//snprintf(array, sizeof(array), "x: %f Y: %f Z: %f", playerHeadPosition.x, playerHeadPosition.y, playerHeadPosition.z);
+				//snprintf(array, sizeof(array), "Level: %i Seq1: %i Seq2: %i Seq3: %i", currentLevel, ISEQ::ISEQ_GET_STATE(1252772788), ISEQ::ISEQ_GET_STATE(1549233931), ISEQ::ISEQ_GET_STATE(736610621));
 				snprintf(array, sizeof(array), "X: %f Y: %f Z: %f", offset.x, offset.y, offset.z);
+
 				HUD::PRINT_STRING_WITH_LITERAL_STRING_NOW("STRING", array, 100, 1);
 
 				if (IsKeyJustUp(VK_NUMPAD7))
