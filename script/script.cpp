@@ -488,12 +488,12 @@ int main() {
 				wasCutscene = true;
 			}
 
-			if (!IsInCutscene() && wasCutscene) {
+			if (!IsInCutscene() && wasCutscene && PLAYER::IS_PLAYER_CONTROL_ON(player)) {
 				// just exited cutscene
 
 				wasCutscene = false;
 
-				if (preferTwoHandedWeaponAfterCutscene) {
+				if (preferTwoHandedWeaponAfterCutscene && !MISC::IS_BULLET_TIME_ACTIVE(1)) {
 					int wep = WEAPON::GET_WEAPON_FROM_HOLSTER(plrPed, 2);
 					if (wep)
 						WEAPON::SELECT_WEAPON_TO_HAND(plrPed, wep, 0, 0);
