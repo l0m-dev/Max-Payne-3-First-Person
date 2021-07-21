@@ -17,4 +17,3 @@ Mod video: <https://youtu.be/dCxxW9OzikY>
 
 ## Third party projects used
   - Max Payne 3 plugin SDK: <https://github.com/alloc8or/mp3-plugin-sdk>
-  - TinyCon: <https://sourceforge.net/projects/tinycon/>

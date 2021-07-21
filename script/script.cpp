@@ -268,16 +268,16 @@ int main() {
 	char tempFloat[32];
 
 	bool enabled = GetPrivateProfileIntA("SETTINGS", "ENABLED", 1, ".\\FirstPerson.ini") != 0;
-	desiredViewMode = GetPrivateProfileIntA("SETTINGS", "FIRSTPERSON_DEFAULT_ENABLED", 1, ".\\FirstPerson.ini") != 0 ? FirstPerson : ThirdPerson;
-	GetPrivateProfileStringA("SETTINGS", "FIRSTPERSON_FOV", "60.0", tempFloat, 32, ".\\FirstPerson.ini");
+	desiredViewMode = GetPrivateProfileIntA("SETTINGS", "FIRST_PERSON_DEFAULT_ENABLED", 1, ".\\FirstPerson.ini") != 0 ? FirstPerson : ThirdPerson;
+	GetPrivateProfileStringA("SETTINGS", "FIRST_PERSON_FOV", "60.0", tempFloat, 32, ".\\FirstPerson.ini");
 	float firstPersonFOV = strtof(tempFloat, nullptr);
-	firstPersonCover = GetPrivateProfileIntA("SETTINGS", "FIRSTPERSON_COVER", 0, ".\\FirstPerson.ini");
+	firstPersonCover = GetPrivateProfileIntA("SETTINGS", "FIRST_PERSON_COVER", 0, ".\\FirstPerson.ini");
 	int changeViewModeKey = GetPrivateProfileIntA("SETTINGS", "CHANGE_VIEW_MODE_KEY", 0x56, ".\\FirstPerson.ini");
 	bool hideHud = GetPrivateProfileIntA("SETTINGS", "HIDE_HUD", 1, ".\\FirstPerson.ini") != 0;
 	bool preferTwoHandedWeaponAfterCutscene = GetPrivateProfileIntA("SETTINGS", "PREFER_TWO_HANDED_WEAPON_AFTER_CUTSCENE", 1, ".\\FirstPerson.ini") != 0;
 
 	bool debug = GetPrivateProfileIntA("ADVANCED", "DEBUG", 0, ".\\FirstPerson.ini") != 0;
-	hideHead = GetPrivateProfileIntA("ADVANCED", "HIDE_HEAD_FIRSTPERSON", 1, ".\\FirstPerson.ini") != 0;
+	hideHead = GetPrivateProfileIntA("ADVANCED", "HIDE_HEAD_FIRST_PERSON", 1, ".\\FirstPerson.ini") != 0;
 	Vector3 offset = Vector3::zero();
 
 	GetPrivateProfileStringA("ADVANCED", "OFFSET_X", "0.1", tempFloat, 32, ".\\FirstPerson.ini");
