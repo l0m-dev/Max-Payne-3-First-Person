@@ -48,10 +48,10 @@
     <ClInclude Include="stringhelper.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="tinycon.h">
+    <ClInclude Include="global.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="global.h">
+    <ClInclude Include="menu.h">
       <Filter>Headers</Filter>
     </ClInclude>
   </ItemGroup>
@@ -72,9 +72,6 @@
       <Filter>Source files</Filter>
     </ClCompile>
     <ClCompile Include="proc.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
-    <ClCompile Include="tinycon.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
   </ItemGroup>

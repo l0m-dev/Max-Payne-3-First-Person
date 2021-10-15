@@ -12,7 +12,7 @@ BOOL WINAPI DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved
 	switch (ul_reason_for_call)
 	{
 	case DLL_PROCESS_ATTACH:
-		DisableThreadLibraryCalls(hModule);
+		//DisableThreadLibraryCalls(hModule);
 		scriptRegister(hModule, ScriptMain);
 		keyboardHandlerRegister(OnKeyboardMessage);
 		break;
@@ -22,6 +22,7 @@ BOOL WINAPI DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved
 		FreeConsole();
 #endif
 		PatchGameplayCameraPosition(ThirdPerson);
+		PatchTurnMode(ThirdPerson);
 		scriptUnregister(hModule);
 		keyboardHandlerUnregister(OnKeyboardMessage);
 		break;

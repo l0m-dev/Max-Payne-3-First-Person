@@ -21,39 +21,39 @@ typedef unsigned long Hash;
 typedef unsigned long Void;
 typedef unsigned long Any;
 
-struct Request_s
-{
+struct Request_s {
 	int index;
 	int unk;
 };
 
-typedef struct Vector3
-{
+typedef struct Vector3 {
 	float x, y, z;
 
-	static Vector3 zero()
-	{
+	Vector3(float X = 0, float Y = 0, float Z = 0) {
+		x = X;
+		y = Y;
+		z = Z;
+	}
+
+	static Vector3 zero() {
 		Vector3 newVec;
 
 		newVec.x = 0.0f;
 		newVec.y = 0.0f;
 		newVec.z = 0.0f;
-		
+
 		return newVec;
 	}
 
-	bool operator==(Vector3 b)
-	{
+	bool operator==(Vector3 b) {
 		return x == b.x && y == b.y && z == b.z;
 	}
 
-	bool operator!=(Vector3 b)
-	{
+	bool operator!=(Vector3 b) {
 		return x != b.x || y != b.y || z != b.z;
 	}
 
-	Vector3 operator+(Vector3 b)
-	{
+	Vector3 operator+(Vector3 b) {
 		Vector3 newVec;
 
 		newVec.x = x + b.x;
@@ -63,8 +63,7 @@ typedef struct Vector3
 		return newVec;
 	}
 
-	Vector3 operator-(Vector3 b)
-	{
+	Vector3 operator-(Vector3 b) {
 		Vector3 newVec;
 
 		newVec.x = x - b.x;
@@ -74,8 +73,7 @@ typedef struct Vector3
 		return newVec;
 	}
 
-	Vector3 operator*(float multiplier)
-	{
+	Vector3 operator*(float multiplier) {
 		Vector3 newVec;
 
 		newVec.x = x * multiplier;
@@ -85,11 +83,10 @@ typedef struct Vector3
 		return newVec;
 	}
 
-	Vector3 normalize()
-	{
+	Vector3 normalize() {
 		Vector3 newVec;
 
-		float mag = (float) (sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2)));
+		float mag = (float)(sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2)));
 		newVec.x = x / mag;
 		newVec.y = y / mag;
 		newVec.z = z / mag;
@@ -101,8 +98,7 @@ typedef struct Vector3
 		return A * t + B * (1.f - t);
 	}
 
-	bool IsZero()
-	{
+	bool IsZero() {
 		return (x == 0 && y == 0 && z == 0);
 	}
 } Vector3;
