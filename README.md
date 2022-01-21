@@ -9,8 +9,10 @@ Get the latest version here: <https://github.com/l0m-dev/Max-Payne-3-First-Perso
 Mod video: <https://youtu.be/dCxxW9OzikY>
 
 ## List of known issues
+  - The gun moves based on where Max is aiming at, this needs to be disabled in first person somehow
   - Max moves too much in cover for the first person camera
   - In chapter 11 on the zipline the first person camera is sometimes too obstructed
+  - Entering first person when close to an object can mess up the controls, fixed when you reenter first person
 
 ## Third party projects used
   - Max Payne 3 plugin SDK: <https://github.com/alloc8or/mp3-plugin-sdk>
