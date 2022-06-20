@@ -1,10 +1,11 @@
-#include "stdafx.h"
 #include "main.h"
 #include "global.h"
 
 #include "script.h"
+#include "enums.h"
+
 #include <Windows.h>
-#include <Math.h>
+#include <math.h>
 
 #include "mem.h"
 #include "proc.h"
@@ -41,7 +42,7 @@ bool hideHud = false;
 bool debug = false;
 
 uintptr_t moduleBase = (uintptr_t)GetModuleHandle(nullptr);
-BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr;
+BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr, *aimingIKAddr, *instantFlickAddr;
 
 bool fpTurnMode = false;
 
@@ -56,6 +57,7 @@ int interpTime = 300;
 int lastShotTime = 0;
 int lastLevelIndex = -1;
 bool disableGameCameraSwitching = false;
+//bool disableAimingIK = false;
 bool inLMSfromCover = false;
 bool wasScoped = false;
 bool wasInBulletCam = false;
@@ -89,7 +91,7 @@ void PatchFirstPerson() {
 		mem::Nop(addr2, 2); // fixes movement
 
 	if (addr3)
-		mem::Patch((BYTE*)addr3, &arcadeByte, sizeof(arcadeByte)); // fixes HUD not showing in arcade modes
+		mem::Patch(addr3, &arcadeByte, sizeof(arcadeByte)); // fixes HUD not showing in arcade modes
 }
 
 void PatchGameplayCameraPosition(ViewMode viewMode) {
@@ -112,41 +114,47 @@ void PatchGameplayCameraPosition(ViewMode viewMode) {
 
 	BYTE combatModeBytes[2] = { 0x75, 0x08 };
 
+	BYTE instantFlickByte = 0x74;
+	BYTE instantFlickByte_dis = 0xEB;
+
 	if (viewMode == ThirdPerson) {
 		if (nopAddr)
-			mem::Patch((BYTE*)nopAddr, nopBytes, sizeof(nopBytes));
+			mem::Patch(nopAddr, nopBytes, sizeof(nopBytes));
 		if (nopAddr1)
-			mem::Patch((BYTE*)(nopAddr1), nop1Bytes_5, sizeof(nop1Bytes_5));
+			mem::Patch(nopAddr1, nop1Bytes_5, sizeof(nop1Bytes_5));
 
 		if (nopAddr1) { // not typo
-			mem::Patch((BYTE*)(nopAddr2 + 0x4), nop2Bytes_4, sizeof(nop2Bytes_4));
-			mem::Patch((BYTE*)(nopAddr2 + 0x28), nop2Bytes_28, sizeof(nop2Bytes_28));
-			mem::Patch((BYTE*)(nopAddr2 + 0x35), nop2Bytes_35, sizeof(nop2Bytes_35));
-			mem::Patch((BYTE*)(nopAddr2 + 0x43), nop2Bytes_43, sizeof(nop2Bytes_43));
+			mem::Patch(nopAddr2 + 0x4, nop2Bytes_4, sizeof(nop2Bytes_4));
+			mem::Patch(nopAddr2 + 0x28, nop2Bytes_28, sizeof(nop2Bytes_28));
+			mem::Patch(nopAddr2 + 0x35, nop2Bytes_35, sizeof(nop2Bytes_35));
+			mem::Patch(nopAddr2 + 0x43, nop2Bytes_43, sizeof(nop2Bytes_43));
 		}
 
 		//if (nopAddr3)
 		//	mem::Patch((BYTE*)nopAddr3, nop3Bytes, sizeof(nop3Bytes));
 
 		if (nopAddr3_2)
-			mem::Patch((BYTE*)nopAddr3_2, nop3_2Bytes, sizeof(nop3_2Bytes));
+			mem::Patch(nopAddr3_2, nop3_2Bytes, sizeof(nop3_2Bytes));
 
 		if (nopAddr3_3)
-			mem::Patch((BYTE*)nopAddr3_3, nop3_3Bytes, sizeof(nop3_3Bytes));
+			mem::Patch(nopAddr3_3, nop3_3Bytes, sizeof(nop3_3Bytes));
 
 		if (combatModeAddr)
-			mem::Patch((BYTE*)(combatModeAddr + 0x7), combatModeBytes, sizeof(combatModeBytes));
+			mem::Patch(combatModeAddr + 0x7, combatModeBytes, sizeof(combatModeBytes));
+
+		if (instantFlickAddr)
+			mem::Patch(instantFlickAddr + 0x7, &instantFlickByte, sizeof(instantFlickByte));
 	} else {
 		if (nopAddr)
-			mem::Nop((BYTE*)nopAddr, sizeof(nopBytes));
+			mem::Nop(nopAddr, sizeof(nopBytes));
 		if (nopAddr1)
-			mem::Nop((BYTE*)(nopAddr1), sizeof(nop1Bytes_5));
+			mem::Nop(nopAddr1, sizeof(nop1Bytes_5));
 
 		if (nopAddr1) {
-			mem::Nop((BYTE*)(nopAddr2 + 0x4), sizeof(nop2Bytes_4));
-			mem::Nop((BYTE*)(nopAddr2 + 0x28), sizeof(nop2Bytes_28));
-			mem::Nop((BYTE*)(nopAddr2 + 0x35), sizeof(nop2Bytes_35));
-			mem::Nop((BYTE*)(nopAddr2 + 0x43), sizeof(nop2Bytes_43));
+			mem::Nop(nopAddr2 + 0x4, sizeof(nop2Bytes_4));
+			mem::Nop(nopAddr2 + 0x28, sizeof(nop2Bytes_28));
+			mem::Nop(nopAddr2 + 0x35, sizeof(nop2Bytes_35));
+			mem::Nop(nopAddr2 + 0x43, sizeof(nop2Bytes_43));
 		}
 		/*
 		Should make reticule more accurate but it messes up camera when near a wall
@@ -155,13 +163,16 @@ void PatchGameplayCameraPosition(ViewMode viewMode) {
 		//	mem::Nop((BYTE*)nopAddr3, sizeof(nop3Bytes));
 
 		if (nopAddr3_2)
-			mem::Nop((BYTE*)nopAddr3_2, sizeof(nop3_2Bytes));
+			mem::Nop(nopAddr3_2, sizeof(nop3_2Bytes));
 
 		if (nopAddr3_3)
-			mem::Nop((BYTE*)nopAddr3_3, sizeof(nop3_3Bytes));
+			mem::Nop(nopAddr3_3, sizeof(nop3_3Bytes));
 
 		if (combatModeAddr)
-			mem::Nop((BYTE*)(combatModeAddr + 0x7), sizeof(combatModeBytes));
+			mem::Nop(combatModeAddr + 0x7, sizeof(combatModeBytes));
+
+		if (instantFlickAddr)
+			mem::Patch(instantFlickAddr + 0x7, &instantFlickByte_dis, sizeof(instantFlickByte_dis));
 	}
 }
 
@@ -170,14 +181,14 @@ void PatchTurnMode(ViewMode viewMode) {
 		if (!fpTurnMode) {
 			BYTE turnModeBytes[1] = { 0xEB };
 			if (turnModeAddr)
-				mem::Patch((BYTE*)turnModeAddr, turnModeBytes, sizeof(turnModeBytes));
+				mem::Patch(turnModeAddr, turnModeBytes, sizeof(turnModeBytes));
 			fpTurnMode = true;
 		}
 	} else if (fpTurnMode) {
 		BYTE turnModeBytes[1] = { 0x74 };
 
 		if (turnModeAddr)
-			mem::Patch((BYTE*)turnModeAddr, turnModeBytes, sizeof(turnModeBytes));
+			mem::Patch(turnModeAddr, turnModeBytes, sizeof(turnModeBytes));
 		fpTurnMode = false;
 	}
 }
@@ -189,14 +200,38 @@ void DisableGameCameraSwitching(bool disable) {
 
 	if (disable) {
 		if (nopAddr4) {
-			mem::Nop((BYTE*)nopAddr4, 6);
+			mem::Nop(nopAddr4, 6);
 		}
 	} else {
 		if (nopAddr4) {
-			mem::Patch((BYTE*)nopAddr4, nop4Bytes, sizeof(nop4Bytes));
+			mem::Patch(nopAddr4, nop4Bytes, sizeof(nop4Bytes));
 		}
 	}
 }
+
+/*
+void DisableAimingIK(bool disable) {
+	BYTE enabledBytes[2] = { 0x74, 0x54 };
+	BYTE enabledBytes_2[4] = { 0xEE, 0x13, 0x82, 0x00 };
+
+	//BYTE disabledBytes[2] = { 0x90, 0x90 };
+	BYTE disabledBytes_2[4] = { 0xFC, 0xFF, 0xFF, 0xFF };
+
+	disableAimingIK = disable;
+
+	if (disable) {
+		if (aimingIKAddr) {
+			mem::Nop(aimingIKAddr, 2);
+			mem::Patch(aimingIKAddr + 10, disabledBytes_2, sizeof(disabledBytes_2));
+		}
+	} else {
+		if (aimingIKAddr) {
+			mem::Patch(aimingIKAddr, enabledBytes, sizeof(enabledBytes));
+			mem::Patch(aimingIKAddr + 10, enabledBytes_2, sizeof(enabledBytes_2));
+		}
+	}
+}
+*/
 
 void GetAddresses() {
 	const char* camComboPattern = "F0 41 CD CC 4C 3D CD CC 4C 3D 66 66 66 3F 35 FA 8E 3C 00 00 00 00 00 00 00 00";
@@ -233,6 +268,11 @@ void GetAddresses() {
 
 	const char* turnModeComboPattern = "74 ?? 83 e8 ?? 75 ?? 46";
 	turnModeAddr = (BYTE*)(mem::ScanIn(turnModeComboPattern, (char*)moduleBase));
+
+	const char* instantFlickComboPattern = "80 B9 ?? 00 00 00 00 74 0F 80 B9 ?? 00";
+	instantFlickAddr = (BYTE*)(mem::ScanIn(instantFlickComboPattern, (char*)moduleBase));
+	
+	//aimingIKAddr = (BYTE*)(moduleBase + 0x225908);
 }
 
 void SetGameplayCameraLocation(float x, float y, float z, float d) {
@@ -253,7 +293,6 @@ void ShowPlayerHead(bool show, bool force = false) {
 		return;
 
 	Ped plrPed = PLAYER::GET_PLAYER_PED(PLAYER::GET_PLAYER_ID());
-	int currentLevel = MISC::GET_INDEX_OF_CURRENT_LEVEL();
 
 	PLAYER::DISPLAY_PLAYER_COMPONENT(ePedComponent::PED_COMPONENT_HEAD, show);
 	PLAYER::DISPLAY_PLAYER_COMPONENT(ePedComponent::PED_COMPONENT_HAIR, show);
@@ -264,12 +303,10 @@ void ShowPlayerHead(bool show, bool force = false) {
 	    PED::GET_PED_DRAWABLE_VARIATION(plrPed, ePedComponent::PED_COMPONENT_TASK) == 6 || show)
 		PLAYER::DISPLAY_PLAYER_COMPONENT(ePedComponent::PED_COMPONENT_TASK, show);
 
-	//if (currentLevel != 11 && !show)
 	if (PED ::GET_PED_DRAWABLE_VARIATION(plrPed, ePedComponent::PED_COMPONENT_SUSE) == 0 ||
 	    PED::GET_PED_DRAWABLE_VARIATION(plrPed, ePedComponent::PED_COMPONENT_SUSE) == 11 || show)
 		PLAYER::DISPLAY_PLAYER_COMPONENT(ePedComponent::PED_COMPONENT_SUSE, show);
 
-	//if (currentLevel != 3 && currentLevel != 7 && currentLevel != 8 && currentLevel != 15 && !show)
 	if (PED::GET_PED_DRAWABLE_VARIATION(plrPed, ePedComponent::PED_COMPONENT_SUS2) <= 1 || show)
 		PLAYER::DISPLAY_PLAYER_COMPONENT(ePedComponent::PED_COMPONENT_SUS2, show);
 
@@ -329,18 +366,6 @@ bool FirstPersonAllowed(Player player) {
 	if (currentLevel == 5 && ISEQ::ISEQ_GET_STATE(94722883) == 3 && CAM::GET_RENDERING_CAM() != firstPersonCamera && CAM::GET_RENDERING_CAM() != -1) // ch 2
 		return false;
 
-	//char array[128];
-	//snprintf(array, sizeof(array), "%i %i %i %i Speed: %f", (int)camRelativeHeading, (int)heading, CAM::IS_CAM_RENDERING(FirstPersonCamera), CAM::GET_RENDERING_CAM(), PED::GET_PED_SPEED(plrPed));
-	//snprintf(array, sizeof(array), "X: %f Y: %f Z: %f", playerHeadPosition.x, playerHeadPosition.y, playerHeadPosition.z);
-	//snprintf(array, sizeof(array), "Level: %i Seq1: %i Seq2: %i Seq3: %i", currentLevel, ISEQ::ISEQ_GET_STATE(812276792),
-	//   ISEQ::ISEQ_GET_STATE(1321278157), PLAYER::IS_PLAYER_CONTROL_ON(player));
-
-	//snprintf(array, sizeof(array), "Rend %i, Firstperson: %i, FP Cam %i", CAM::GET_RENDERING_CAM(), currentViewMode == FirstPerson, firstPersonCamera);
-	//HUD::PRINT_STRING_WITH_LITERAL_STRING_NOW("STRING", array, 100, 1);
-
-	//if (CAM::GET_RENDERING_CAM() != firstPersonCamera && CAM::GET_RENDERING_CAM() != -1 && *(int*)(moduleBase + 0x1491174))
-	//	return false;
-
 	return !IsInCutscene() && !CAM::IS_BULLET_CAMERA_ACTIVE() && !CAM::IS_BULLET_CAMERA_SCENE_ACTIVE(CAM::GET_RENDERING_CAM()) &&
 	    !PLAYER::IS_PLAYER_DOING_MELEE_GRAPPLE(player) && !PED::IS_PED_SWIMMING(plrPed) && !HUD::IS_SNIPER_SCOPE_VISIBLE() &&
 	    !HUD::IS_PAUSE_MENU_ACTIVE() && !PLAYER::IS_PLAYER_CLIMBING(player) && PED::IS_PED_VISIBLE(plrPed) && !PLAYER::IS_PLAYER_DEAD(player) &&
@@ -374,8 +399,6 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 	//printf("TP Camera: x: %f, Y: %f, Z: %F, Fov: %f\n", gameplayCameraLocation.x, gameplayCameraLocation.y, gameplayCameraLocation.z, cameraFOV);
 
 	if (viewMode == FirstPerson) {
-		Ped plrPed = PLAYER::GET_PLAYER_PED(PLAYER::GET_PLAYER_ID());
-
 		lerpedPos = cameraLocation;
 		SetGameplayCameraLocation(lerpedPos.x, lerpedPos.y, lerpedPos.z, -1.04719758f);
 
@@ -405,7 +428,7 @@ bool trainer_switch_pressed() {
 	return IsKeyJustDown(VK_F2) || (isTrainerVisible && mainMenuActive && (IsKeyJustDown(VK_NUMPAD0) || IsKeyJustDown(VK_BACK)));
 }
 
-void process_options_menu(std::string caption, std::vector<MenuItem> lines, int* active_index, MenuNavigation navigation) {
+void process_options_menu(std::string& caption, std::vector<MenuItem>& lines, int* active_index, MenuNavigation& navigation) {
 	if (navigation == NAV_Select) {
 		switch (*active_index) {
 		case 0:
@@ -440,7 +463,7 @@ void process_options_menu(std::string caption, std::vector<MenuItem> lines, int*
 	}
 }
 
-void process_advanced_options_menu(std::string caption, std::vector<MenuItem> lines, int* active_index, MenuNavigation navigation) {
+void process_advanced_options_menu(std::string& caption, std::vector<MenuItem>& lines, int* active_index, MenuNavigation& navigation) {
 	if (navigation == NAV_Select) {
 		switch (*active_index) {
 		case 3:
@@ -485,7 +508,7 @@ void process_advanced_options_menu(std::string caption, std::vector<MenuItem> li
 	}
 }
 
-void process_misc_menu(std::string caption, std::vector<MenuItem> lines, int* active_index, MenuNavigation navigation) {
+void process_misc_menu(std::string& caption, std::vector<MenuItem>& lines, int* active_index, MenuNavigation& navigation) {
 	if (navigation == NAV_Select) {
 		switch (*active_index) {
 		case 0:
@@ -615,7 +638,7 @@ int main() {
 
 	bool enabled = GetPrivateProfileIntA("SETTINGS", "ENABLED", 1, ".\\FirstPerson.ini") != 0;
 	desiredViewMode = GetPrivateProfileIntA("SETTINGS", "FIRST_PERSON_DEFAULT_ENABLED", 1, ".\\FirstPerson.ini") != 0 ? FirstPerson : ThirdPerson;
-	GetPrivateProfileStringA("SETTINGS", "FIRST_PERSON_FOV", "60.0", tempFloat, 32, ".\\FirstPerson.ini");
+	GetPrivateProfileStringA("SETTINGS", "FIRST_PERSON_FOV", "60.0", tempFloat, sizeof(tempFloat), ".\\FirstPerson.ini");
 	firstPersonFOV = strtof(tempFloat, nullptr);
 	firstPersonCover = GetPrivateProfileIntA("SETTINGS", "FIRST_PERSON_COVER", 0, ".\\FirstPerson.ini");
 	int changeViewModeKey = GetPrivateProfileIntA("SETTINGS", "CHANGE_VIEW_MODE_KEY", 0x56, ".\\FirstPerson.ini");
@@ -643,11 +666,6 @@ int main() {
 	bool wasCutscene = false;
 	bool wasCover = false;
 	int lastCutsceneTime = 0;
-	bool wasInElevator = false;
-	int lastChainState = 0;
-	int lastChapelState = 0;
-	int oldParkingLotState = 0;
-	bool wasBulletCamera = false;
 
 	float forward = 0.02;
 	float headVisibleOffset = 0;
@@ -851,6 +869,8 @@ int main() {
 
 					if (currentLevel == 13 && !disableGameCameraSwitching && !WEAPON::GET_WEAPON_FROM_HAND(plrPed, 0, 0))
 						DisableGameCameraSwitching(1);
+
+					//DisableAimingIK(true);
 				}
 			} else {
 				if (currentViewMode == FirstPerson)
@@ -858,12 +878,11 @@ int main() {
 			}
 
 			// get times
-			if (IsInCutscene())
-				lastCutsceneTime = MISC::GET_GAME_TIMER();
-
 			if (PED::IS_PED_SHOOTING(plrPed))
 				lastShotTime = MISC::GET_GAME_TIMER();
 
+			//HUD::FORCE_RED_RETICULE(currentViewMode == FirstPerson && PLAYER::IS_PLAYER_TARGETTING_ANYTHING(player));
+			
 			// first person rendering
 			if (currentViewMode == FirstPerson) {
 				if (!CAM::IS_CAM_RENDERING(firstPersonCamera))
@@ -912,7 +931,7 @@ int main() {
 
 				double headingD = DegreesToRadians(gameplayCameraRotation.z);
 
-				lerpedForwardScale = lerp(lerpedForwardScale, forwardScale, exp(-10 * SYSTEM::TIMESTEPUNWARPED())); //-25
+				lerpedForwardScale = lerp(lerpedForwardScale, forwardScale, exp(-10.0 * SYSTEM::TIMESTEPUNWARPED())); //-25
 
 				forwardOffset.x -= lerpedForwardScale * sin(-headingD);
 				forwardOffset.y -= lerpedForwardScale * cos(-headingD);
@@ -923,7 +942,7 @@ int main() {
 					lerpedPos = playerHeadPosition;
 
 				if (PED::GET_PED_SPEED(plrPed) > 0 && PED::GET_PED_SPEED(plrPed) < 5 && !rolling)
-					lerpedPos = Vector3::lerp(lerpedPos, playerHeadPosition, exp(-25 * SYSTEM::TIMESTEPUNWARPED())); // 0.89 old value
+					lerpedPos = Vector3::lerp(lerpedPos, playerHeadPosition, exp(-25.0 * SYSTEM::TIMESTEPUNWARPED())); // 0.89 old value
 				else
 					lerpedPos = playerHeadPosition;
 
@@ -961,7 +980,7 @@ int main() {
 
 				PatchTurnMode(PED::IS_PED_VAULTING(plrPed) ||
 					    WEAPON::GET_WEAPON_FROM_SLOT(plrPed, 2) == WEAPON::GET_WEAPON_FROM_HAND(plrPed, 0, 0) ||
-					    PED::IS_PED_DUAL_WIELDING(plrPed)
+					    PED::IS_PED_DUAL_WIELDING(plrPed) || PED::GET_PED_SPEED(plrPed) < 2
 					? ThirdPerson
 					: FirstPerson);
 			} else {
@@ -970,6 +989,9 @@ int main() {
 
 				if (disableGameCameraSwitching)
 					DisableGameCameraSwitching(0);
+
+				//if (disableAimingIK)
+				//	DisableAimingIK(false);
 
 				PatchTurnMode(ThirdPerson);
 			}
@@ -1017,9 +1039,6 @@ int main() {
 	return 0;
 }
 
-#ifdef CONSOLE_ENABLED
-FILE* f;
-#endif
 void ScriptMain() {
 #ifdef CONSOLE_ENABLED
 	AllocConsole();
@@ -1035,15 +1054,16 @@ void ScriptMain() {
 	SetWindowPos(ConsoleHwnd, nullptr, desktop.right - ConsoleWidth, desktop.bottom - ConsoleHeight - 28, ConsoleWidth, ConsoleHeight,
 	    SWP_NOZORDER); //SWP_NOSIZE
 	HANDLE hOutConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-	HANDLE hInConsole = GetStdHandle(STD_INPUT_HANDLE);
 
 	SetConsoleTextAttribute(hOutConsole, FOREGROUND_GREEN);
 
-	freopen_s(&f, "CONIN$", "r", stdin);
-	freopen_s(&f, "CONOUT$", "w", stdout);
-	freopen_s(&f, "CONOUT$", "w", stderr);
+	SetConsoleCtrlHandler(nullptr, TRUE);
 
-	std::cout << "Started\n";
+	freopen_s((FILE**)stdin, "CONIN$", "r", stdin);
+	freopen_s((FILE**)stdout, "CONOUT$", "w", stdout);
+	freopen_s((FILE**)stderr, "CONOUT$", "w", stderr);
+
+	printf("Started\n");
 #endif
 	main();
 }

@@ -3,6 +3,9 @@
 #pragma warning(disable : 4244 4305) // double <-> float conversions
 #pragma warning(disable : 28159) // GetTickCount64
 
+#include "natives.h"
+#include "keyboard.h"
+
 int fnt = 0;
 
 enum MenuNavigation { NAV_Back, NAV_Select, NAV_Scroll, NAV_Toggle, NAV_Scroll_L, NAV_Scroll_R, NAV_None };
@@ -22,7 +25,7 @@ struct MenuItem {
 struct Menu {
 	std::string caption;
 	std::vector<MenuItem> lines;
-	void (*process_menu_function)(std::string caption, std::vector<MenuItem> lines, int* active_index, MenuNavigation navigation);
+	void (*process_menu_function)(std::string& caption, std::vector<MenuItem>& lines, int* active_index, MenuNavigation& navigation);
 	float lineWidth = 300.0;
 	float lineHeight = 20.0;
 	float lineSpacing = 58.0;

@@ -1,10 +1,9 @@
 // copied from ScriptHookV SDK
 
-#include "stdafx.h"
 #include "keyboard.h"
 
 const int KEYS_SIZE = 255;
-int repeatDelay = 8;
+const int repeatDelay = 8;
 
 struct {
 	DWORD time;

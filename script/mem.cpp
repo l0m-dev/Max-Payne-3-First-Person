@@ -1,5 +1,5 @@
-#include "stdafx.h"
 #include "mem.h"
+#include "psapi.h"
 
 void mem::PatchEx(void* dst, void* src, unsigned int size, HANDLE hProcess)
 {
@@ -88,7 +88,7 @@ char* mem::TrampHook32(void* src, void* dst, const intptr_t len)
 	intptr_t  gatewayRelativeAddr = ((intptr_t)src - (intptr_t)gateway) - 5;
 
 	// Add the jmp opcode to the end of the gateway
-	*(char*)((intptr_t)gateway + len) = 0xE9;
+	*(unsigned char*)((intptr_t)gateway + len) = 0xE9;
 
 	// Add the address to the jmp
 	*(intptr_t*)((intptr_t)gateway + len + 1) = gatewayRelativeAddr;

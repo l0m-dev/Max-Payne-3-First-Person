@@ -2,7 +2,6 @@
 
 #include "types.h"
 #include "nativeCaller.h"
-#include "stdafx.h"
 #include "main.h"
 
 namespace SYSTEM {
