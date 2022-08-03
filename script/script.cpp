@@ -18,6 +18,7 @@ bool isTrainerVisible = false;
 bool mainMenuActive = true;
 
 bool hidePlayerDamage = false;
+bool disableBlackBars = false;
 
 struct CameraInfo {
 	float x;
@@ -42,7 +43,7 @@ bool hideHud = false;
 bool debug = false;
 
 uintptr_t moduleBase = (uintptr_t)GetModuleHandle(nullptr);
-BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr, *aimingIKAddr, *instantFlickAddr;
+BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr, *aimingIKAddr, *instantFlickAddr, *blackBarsAddr;
 
 bool fpTurnMode = false;
 
@@ -193,19 +194,33 @@ void PatchTurnMode(ViewMode viewMode) {
 	}
 }
 
+void DisableBlackBars(bool disable) {
+	if (!blackBarsAddr) {
+		return;
+	}
+
+	if (disable) {
+		BYTE blackBarsByte = 0xEB;
+		mem::Patch(blackBarsAddr, &blackBarsByte, sizeof(blackBarsByte));
+	} else {
+		BYTE blackBarsByte = 0x75;
+		mem::Patch(blackBarsAddr, &blackBarsByte, sizeof(blackBarsByte));
+	}
+}
+
 void DisableGameCameraSwitching(bool disable) {
 	BYTE nop4Bytes[6] = { 0x88, 0x9E, 0xA8, 0x00, 0x00, 0x00 };
 
 	disableGameCameraSwitching = disable;
 
+	if (!nopAddr4) {
+		return;
+	}
+
 	if (disable) {
-		if (nopAddr4) {
-			mem::Nop(nopAddr4, 6);
-		}
+		mem::Nop(nopAddr4, sizeof(nop4Bytes));
 	} else {
-		if (nopAddr4) {
-			mem::Patch(nopAddr4, nop4Bytes, sizeof(nop4Bytes));
-		}
+		mem::Patch(nopAddr4, nop4Bytes, sizeof(nop4Bytes));
 	}
 }
 
@@ -272,6 +287,10 @@ void GetAddresses() {
 	const char* instantFlickComboPattern = "80 B9 ?? 00 00 00 00 74 0F 80 B9 ?? 00";
 	instantFlickAddr = (BYTE*)(mem::ScanIn(instantFlickComboPattern, (char*)moduleBase));
 	
+	//const char* blackBarsComboPattern = "75 0C 80 3D ?? ?? ?? ?? 00";
+	const char* blackBarsComboPattern = "75 56 F3 0F 10 05 ?? ?? ? ?? 0F";
+	blackBarsAddr = (BYTE*)(mem::ScanIn(blackBarsComboPattern, (char*)moduleBase));
+
 	//aimingIKAddr = (BYTE*)(moduleBase + 0x225908);
 }
 
@@ -414,10 +433,15 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 			ShowPlayerHead(false);
 		}
 
+		DisableBlackBars(true);
+
 		CAM::SET_CAM_ACTIVE(firstPersonCamera, 1);
 		CAM::RENDER_SCRIPT_CAMS(1, transition && fpTransitionAllowed, interpTime, 0); // camera to render, 1 = scripted camera, 0 = gameplay camera
 	} else {
 		ShowPlayerHead(true);
+
+		if (!disableBlackBars)
+			DisableBlackBars(false);
 
 		if (CAM::GET_RENDERING_CAM() == firstPersonCamera || CAM::GET_RENDERING_CAM() == -1)
 			CAM::RENDER_SCRIPT_CAMS(0, tpTransitionAllowed, interpTime, 0);
@@ -514,6 +538,11 @@ void process_misc_menu(std::string& caption, std::vector<MenuItem>& lines, int* 
 		case 0:
 			WritePrivateProfileStringA("SETTINGS", "HIDE_PLAYER_DAMAGE", hidePlayerDamage ? "1" : "0", ".\\FirstPerson.ini");
 			break;
+		case 1:
+			WritePrivateProfileStringA("SETTINGS", "DISABLE_BLACK_BARS", disableBlackBars ? "1" : "0", ".\\FirstPerson.ini");
+			if (currentViewMode != ViewMode::FirstPerson)
+				DisableBlackBars(disableBlackBars);
+			break;
 		}
 	}
 }
@@ -533,7 +562,8 @@ Menu menus[] = {
 #endif
 	    },
 	    &process_advanced_options_menu },
-	{ "MISC  OPTIONS", { { "HIDE PLAYER DAMAGE", 1, 0, &hidePlayerDamage } }, &process_misc_menu },
+	{ "MISC  OPTIONS", {
+		{ "HIDE PLAYER DAMAGE", 1, 0, &hidePlayerDamage }, { "Disable Black Bars (Ultrawide)", 1, 0, &disableBlackBars } }, &process_misc_menu },
 };
 
 void process_main_menu() {
@@ -645,6 +675,7 @@ int main() {
 	//hideHud = GetPrivateProfileIntA("SETTINGS", "HIDE_HUD", 0, ".\\FirstPerson.ini") != 0;
 	preferTwoHandedWeaponAfterCutscene = GetPrivateProfileIntA("SETTINGS", "PREFER_TWO_HANDED_WEAPON_AFTER_CUTSCENE", 1, ".\\FirstPerson.ini") != 0;
 	hidePlayerDamage = GetPrivateProfileIntA("SETTINGS", "HIDE_PLAYER_DAMAGE", 0, ".\\FirstPerson.ini") != 0;
+	disableBlackBars = GetPrivateProfileIntA("SETTINGS", "DISABLE_BLACK_BARS", 1, ".\\FirstPerson.ini") != 0;
 
 #ifdef _DEBUG
 	debug = GetPrivateProfileIntA("ADVANCED", "DEBUG", 0, ".\\FirstPerson.ini") != 0;
@@ -676,6 +707,7 @@ int main() {
 
 	PatchFirstPerson();
 	GetAddresses();
+	DisableBlackBars(disableBlackBars);
 
 	while (true) {
 		if (PLAYER::DOES_MAIN_PLAYER_EXIST()) {
