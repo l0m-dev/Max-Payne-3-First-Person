@@ -44,6 +44,7 @@ bool debug = false;
 
 uintptr_t moduleBase = (uintptr_t)GetModuleHandle(nullptr);
 BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr, *aimingIKAddr, *instantFlickAddr, *blackBarsAddr;
+BYTE *controllerFixAddr;
 
 bool fpTurnMode = false;
 
@@ -63,7 +64,6 @@ bool inLMSfromCover = false;
 bool wasScoped = false;
 bool wasInBulletCam = false;
 bool wasInMelee = false;
-int lastCutceneTime = 0;
 
 struct Props {
 	int hat;
@@ -194,7 +194,7 @@ void PatchTurnMode(ViewMode viewMode) {
 	}
 }
 
-void DisableBlackBars(bool disable) {
+void PatchBlackBars(bool disable) {
 	if (!blackBarsAddr) {
 		return;
 	}
@@ -250,7 +250,7 @@ void DisableAimingIK(bool disable) {
 
 void GetAddresses() {
 	const char* camComboPattern = "F0 41 CD CC 4C 3D CD CC 4C 3D 66 66 66 3F 35 FA 8E 3C 00 00 00 00 00 00 00 00";
-	cameraOffset = (uintptr_t)(mem::ScanIn(camComboPattern, (char*)moduleBase) + 0x1e);
+	cameraOffset = (uintptr_t)(mem::ScanIn(camComboPattern, (char*)moduleBase));
 
 	const char* comboPattern = "D9 00 F3 0F 10 40 04 F3 0F 10 48 08 D9 1E F3 0F 11 46 04 F3 0F 11 4E 08 D9 40 0C D9 5E 0C 8B 43 34 85 C0 0F";
 	nopAddr = (BYTE*)(mem::ScanIn(comboPattern, (char*)moduleBase));
@@ -290,7 +290,13 @@ void GetAddresses() {
 	//const char* blackBarsComboPattern = "75 0C 80 3D ?? ?? ?? ?? 00";
 	const char* blackBarsComboPattern = "75 56 F3 0F 10 05 ?? ?? ? ?? 0F";
 	blackBarsAddr = (BYTE*)(mem::ScanIn(blackBarsComboPattern, (char*)moduleBase));
+	
+	const char* controllerFixComboPattern = "CC 8A 44 24 04 8B 4C 24 0C";
+	controllerFixAddr = (BYTE*)(mem::ScanIn(controllerFixComboPattern, (char*)moduleBase));
 
+	if (controllerFixAddr) {
+		controllerFixAddr = *(BYTE**)(controllerFixAddr + 20);
+	}
 	//aimingIKAddr = (BYTE*)(moduleBase + 0x225908);
 }
 
@@ -433,18 +439,21 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 			ShowPlayerHead(false);
 		}
 
-		DisableBlackBars(true);
+		// fix for controller right stick not working after cutscenes
+		*controllerFixAddr = 0;
 
 		CAM::SET_CAM_ACTIVE(firstPersonCamera, 1);
 		CAM::RENDER_SCRIPT_CAMS(1, transition && fpTransitionAllowed, interpTime, 0); // camera to render, 1 = scripted camera, 0 = gameplay camera
+
+		PatchBlackBars(true);
 	} else {
 		ShowPlayerHead(true);
 
-		if (!disableBlackBars)
-			DisableBlackBars(false);
-
 		if (CAM::GET_RENDERING_CAM() == firstPersonCamera || CAM::GET_RENDERING_CAM() == -1)
 			CAM::RENDER_SCRIPT_CAMS(0, tpTransitionAllowed, interpTime, 0);
+
+		if (!disableBlackBars)
+			PatchBlackBars(false);
 	}
 }
 
@@ -540,8 +549,8 @@ void process_misc_menu(std::string& caption, std::vector<MenuItem>& lines, int* 
 			break;
 		case 1:
 			WritePrivateProfileStringA("SETTINGS", "DISABLE_BLACK_BARS", disableBlackBars ? "1" : "0", ".\\FirstPerson.ini");
-			if (currentViewMode != ViewMode::FirstPerson)
-				DisableBlackBars(disableBlackBars);
+			if (currentViewMode == ViewMode::ThirdPerson)
+				PatchBlackBars(disableBlackBars);
 			break;
 		}
 	}
@@ -696,7 +705,6 @@ int main() {
 
 	bool wasCutscene = false;
 	bool wasCover = false;
-	int lastCutsceneTime = 0;
 
 	float forward = 0.02;
 	float headVisibleOffset = 0;
@@ -707,7 +715,7 @@ int main() {
 
 	PatchFirstPerson();
 	GetAddresses();
-	DisableBlackBars(disableBlackBars);
+	PatchBlackBars(disableBlackBars);
 
 	while (true) {
 		if (PLAYER::DOES_MAIN_PLAYER_EXIST()) {
@@ -752,8 +760,8 @@ int main() {
 			if (IsKeyJustDown(VK_F9)) {
 				MISC::RETURN_TO_TITLESCREEN(NULL);
 			}
-
-			cameraAddr = (CameraInfo*)(*(uintptr_t*)cameraOffset + 0x170);
+			cameraAddr = (CameraInfo*)(*(uintptr_t*)(cameraOffset + 0x1e) + 0x170);
+			
 
 			//Vector3 gameplayCameraLocation = CAM::GET_GAMEPLAY_CAM_COORD();
 			Vector3 gameplayCameraRotation = CAM::GET_GAMEPLAY_CAM_ROT();
