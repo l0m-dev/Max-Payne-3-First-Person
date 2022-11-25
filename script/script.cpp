@@ -14,6 +14,9 @@
 
 #pragma warning(disable : 4244 4305) // double <-> float conversions
 
+#define MIN_FOV 10
+#define MAX_FOV 130
+
 bool isTrainerVisible = false;
 bool mainMenuActive = true;
 
@@ -36,6 +39,7 @@ uintptr_t cameraOffset;
 Vector3 offset = Vector3::zero();
 Vector3 defaultOffset = { 0.1, 0.12, 0.1 };
 float firstPersonFOV;
+float firstPersonFOVReduction;
 bool firstPersonCover = false;
 bool preferTwoHandedWeaponAfterCutscene;
 bool hideHead = true;
@@ -43,14 +47,16 @@ bool hideHud = false;
 bool debug = false;
 
 uintptr_t moduleBase = (uintptr_t)GetModuleHandle(nullptr);
-BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr, *aimingIKAddr, *instantFlickAddr, *blackBarsAddr;
-BYTE *controllerFixAddr;
+BYTE *nopAddr, *nopAddr1, *nopAddr2, *nopAddr3, *nopAddr3_2, *nopAddr3_3, *nopAddr4, *combatModeAddr, *turnModeAddr, *aimingAddr, *aimingIKAddr,
+    *instantFlickAddr, *blackBarsAddr;
+BYTE* controllerFixAddr;
 
 bool fpTurnMode = false;
 
 Vector3 lerpedPos = Vector3::zero();
 //Vector3 coverLerpPos = Vector3::zero();
 float lerpedForwardScale = 0;
+float lerpedFOV = 0;
 
 int interpolateStart = -1;
 bool interpolatingCamera = false;
@@ -286,16 +292,16 @@ void GetAddresses() {
 
 	const char* instantFlickComboPattern = "80 B9 ?? 00 00 00 00 74 0F 80 B9 ?? 00";
 	instantFlickAddr = (BYTE*)(mem::ScanIn(instantFlickComboPattern, (char*)moduleBase));
-	
+
 	//const char* blackBarsComboPattern = "75 0C 80 3D ?? ?? ?? ?? 00";
 	const char* blackBarsComboPattern = "75 56 F3 0F 10 05 ?? ?? ? ?? 0F";
 	blackBarsAddr = (BYTE*)(mem::ScanIn(blackBarsComboPattern, (char*)moduleBase));
-	
-	const char* controllerFixComboPattern = "CC 8A 44 24 04 8B 4C 24 0C";
+
+	const char* controllerFixComboPattern = "a2 ?? ?? ?? ?? 89 0d ?? ?? ?? ?? 89 15";
 	controllerFixAddr = (BYTE*)(mem::ScanIn(controllerFixComboPattern, (char*)moduleBase));
 
 	if (controllerFixAddr) {
-		controllerFixAddr = *(BYTE**)(controllerFixAddr + 20);
+		controllerFixAddr = *(BYTE**)(controllerFixAddr + 1);
 	}
 	//aimingIKAddr = (BYTE*)(moduleBase + 0x225908);
 }
@@ -440,8 +446,9 @@ void SetupViewMode(ViewMode viewMode, Vector3 cameraLocation, Vector3 cameraRota
 		}
 
 		// fix for controller right stick not working after cutscenes
-		*controllerFixAddr = 0;
-
+		if (controllerFixAddr) {
+			*controllerFixAddr = 0;
+		}
 		CAM::SET_CAM_ACTIVE(firstPersonCamera, 1);
 		CAM::RENDER_SCRIPT_CAMS(1, transition && fpTransitionAllowed, interpTime, 0); // camera to render, 1 = scripted camera, 0 = gameplay camera
 
@@ -484,14 +491,28 @@ void process_options_menu(std::string& caption, std::vector<MenuItem>& lines, in
 		if (navigation == NAV_Scroll_L || navigation == NAV_Scroll_R) {
 			if (*active_index == 3) {
 				firstPersonFOV += delta;
+				
+				if (firstPersonFOV > MAX_FOV || firstPersonFOV < MIN_FOV) {
+					firstPersonFOV = max(min(firstPersonFOV, MAX_FOV), MIN_FOV);
+				} else {
+					menu_beep(NAV_Scroll);
+					CAM::SET_CAM_FOV(firstPersonCamera, firstPersonFOV);
+					WritePrivateProfileStringA(
+					    "SETTINGS", "FIRST_PERSON_FOV", std::to_string((int)firstPersonFOV).c_str(), ".\\FirstPerson.ini");
+				}
+			} else if (*active_index == 4) {
+				firstPersonFOVReduction += delta;
+
+				if (firstPersonFOVReduction > 50 || firstPersonFOVReduction < 0) {
+					firstPersonFOVReduction = max(min(firstPersonFOVReduction, 50), 0);
+				} else {
+					menu_beep(NAV_Scroll);
+					
+					WritePrivateProfileStringA(
+					    "SETTINGS", "FIRST_PERSON_AIMING_FOV_REDUCTION", std::to_string((int)firstPersonFOVReduction).c_str(), ".\\FirstPerson.ini");
+				}
 			}
-			if (firstPersonFOV > 130 || firstPersonFOV < 10) {
-				firstPersonFOV = max(min(firstPersonFOV, 130), 10);
-			} else {
-				menu_beep(NAV_Scroll);
-				CAM::SET_CAM_FOV(firstPersonCamera, firstPersonFOV);
-				WritePrivateProfileStringA("SETTINGS", "FIRST_PERSON_FOV", std::to_string((int)firstPersonFOV).c_str(), ".\\FirstPerson.ini");
-			}
+			
 		}
 	}
 }
@@ -559,20 +580,37 @@ void process_misc_menu(std::string& caption, std::vector<MenuItem>& lines, int* 
 int activeLineIndexMain = 0;
 
 Menu menus[] = {
-	{ "GENERAL  OPTIONS",
-	    { { "First Person Cover (BUGGY)", 1, 0, &firstPersonCover }, { "Prefer Two Handed Weapons", 1, 0, &preferTwoHandedWeaponAfterCutscene },
-		{ "Hide Head in First Person", 1, 0, &hideHead }, { "First Person FOV", 0, 1, 0, &firstPersonFOV } },
-	    &process_options_menu },
-	{ "ADVANCED  OPTIONS",
-	    { { "OFFSET X", 0, 1, 0, &offset.x }, { "OFFSET Y", 0, 1, 0, &offset.y }, { "OFFSET Z", 0, 1, 0, &offset.z }, { "Reset to defaults" }
+	{
+		"GENERAL  OPTIONS",
+	    {
+			{ "First Person Cover (BUGGY)", 1, 0, &firstPersonCover },
+			{ "Prefer Two Handed Weapons", 1, 0, &preferTwoHandedWeaponAfterCutscene },
+			{ "Hide Head in First Person", 1, 0, &hideHead },
+			{ "First Person FOV", 0, 1, 0, &firstPersonFOV },
+			{ "Aiming FOV Reduction", 0, 1, 0, &firstPersonFOVReduction }
+		}, &process_options_menu
+	},
+	{
+	"ADVANCED  OPTIONS",
+	{
+		{ "OFFSET X", 0, 1, 0, &offset.x },
+		{ "OFFSET Y", 0, 1, 0, &offset.y },
+		{ "OFFSET Z", 0, 1, 0, &offset.z },
+		{ "Reset to defaults" }
 #ifdef _DEBUG
 		,
 		{ "ENABLE DEBUG", 1, 0, &debug }
 #endif
-	    },
-	    &process_advanced_options_menu },
-	{ "MISC  OPTIONS", {
-		{ "HIDE PLAYER DAMAGE", 1, 0, &hidePlayerDamage }, { "Disable Black Bars (Ultrawide)", 1, 0, &disableBlackBars } }, &process_misc_menu },
+	    }, &process_advanced_options_menu
+	},
+	{
+		"MISC  OPTIONS",
+		{
+			{ "HIDE PLAYER DAMAGE", 1, 0, &hidePlayerDamage },
+			{ "Disable Black Bars (Ultrawide)", 1, 0, &disableBlackBars }
+		},
+	    &process_misc_menu
+	},
 };
 
 void process_main_menu() {
@@ -679,6 +717,8 @@ int main() {
 	desiredViewMode = GetPrivateProfileIntA("SETTINGS", "FIRST_PERSON_DEFAULT_ENABLED", 1, ".\\FirstPerson.ini") != 0 ? FirstPerson : ThirdPerson;
 	GetPrivateProfileStringA("SETTINGS", "FIRST_PERSON_FOV", "60.0", tempFloat, sizeof(tempFloat), ".\\FirstPerson.ini");
 	firstPersonFOV = strtof(tempFloat, nullptr);
+	GetPrivateProfileStringA("SETTINGS", "FIRST_PERSON_AIMING_FOV_REDUCTION", "0.0", tempFloat, sizeof(tempFloat), ".\\FirstPerson.ini");
+	firstPersonFOVReduction = strtof(tempFloat, nullptr);
 	firstPersonCover = GetPrivateProfileIntA("SETTINGS", "FIRST_PERSON_COVER", 0, ".\\FirstPerson.ini");
 	int changeViewModeKey = GetPrivateProfileIntA("SETTINGS", "CHANGE_VIEW_MODE_KEY", 0x56, ".\\FirstPerson.ini");
 	//hideHud = GetPrivateProfileIntA("SETTINGS", "HIDE_HUD", 0, ".\\FirstPerson.ini") != 0;
@@ -761,7 +801,6 @@ int main() {
 				MISC::RETURN_TO_TITLESCREEN(NULL);
 			}
 			cameraAddr = (CameraInfo*)(*(uintptr_t*)(cameraOffset + 0x1e) + 0x170);
-			
 
 			//Vector3 gameplayCameraLocation = CAM::GET_GAMEPLAY_CAM_COORD();
 			Vector3 gameplayCameraRotation = CAM::GET_GAMEPLAY_CAM_ROT();
@@ -887,8 +926,8 @@ int main() {
 				HUD::PRINT_STRING_WITH_LITERAL_STRING_NOW("STRING", array, 100, 1);
 			}
 #endif
-
-			if (IsKeyJustDown(changeViewModeKey)) {
+			
+			if (IsKeyJustDown(changeViewModeKey) || PAD::IS_CONTROL_JUST_PRESSED(0, INPUT_FRONTEND_SELECT)) {
 				desiredViewMode = (ViewMode)!desiredViewMode;
 				WritePrivateProfileStringA(
 				    "SETTINGS", "FIRST_PERSON_DEFAULT_ENABLED", desiredViewMode == FirstPerson ? "1" : "0", ".\\FirstPerson.ini");
@@ -922,7 +961,7 @@ int main() {
 				lastShotTime = MISC::GET_GAME_TIMER();
 
 			//HUD::FORCE_RED_RETICULE(currentViewMode == FirstPerson && PLAYER::IS_PLAYER_TARGETTING_ANYTHING(player));
-			
+
 			// first person rendering
 			if (currentViewMode == FirstPerson) {
 				if (!CAM::IS_CAM_RENDERING(firstPersonCamera))
@@ -930,6 +969,11 @@ int main() {
 
 				if (ShouldResetStreaming(playerHeadPosition))
 					STREAMING::RESET_STREAMING_POINT_OF_INTEREST();
+
+				// aiming fov
+				float targetFOV = PAD::IS_CONTROL_PRESSED(0, INPUT_AIM) ? max(firstPersonFOV - firstPersonFOVReduction, MIN_FOV) : firstPersonFOV;
+				lerpedFOV = lerp(lerpedFOV, targetFOV, exp(-10.0 * SYSTEM::TIMESTEPUNWARPED()));
+				CAM::SET_CAM_FOV(firstPersonCamera, lerpedFOV);
 
 				forwardOffset = Vector3::zero();
 				float forwardScale = 0;
