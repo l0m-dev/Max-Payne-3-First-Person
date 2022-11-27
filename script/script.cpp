@@ -927,7 +927,7 @@ int main() {
 			}
 #endif
 			
-			if (IsKeyJustDown(changeViewModeKey) || PAD::IS_CONTROL_JUST_PRESSED(0, INPUT_FRONTEND_SELECT)) {
+			if (IsKeyJustDown(changeViewModeKey) || (PAD::IS_USING_CONTROLLER() && PAD::IS_CONTROL_JUST_PRESSED(0, INPUT_FRONTEND_SELECT))) {
 				desiredViewMode = (ViewMode)!desiredViewMode;
 				WritePrivateProfileStringA(
 				    "SETTINGS", "FIRST_PERSON_DEFAULT_ENABLED", desiredViewMode == FirstPerson ? "1" : "0", ".\\FirstPerson.ini");
